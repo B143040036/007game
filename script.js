@@ -57,7 +57,7 @@ async function predict() {
     }
 }
 
-// 嚴格比對機率，找出當前真正最高的動作
+// 直接抓取當前最高機率的動作（不擅自強制轉為 stay）
 function getPlayerDetectedAction() {
     if (!currentPredictions || currentPredictions.length === 0) return "stay";
     
@@ -68,11 +68,6 @@ function getPlayerDetectedAction() {
         }
     }
     
-    // 如果最高機率小於 40%，保險起見當作 stay 避免誤判
-    if (bestPred.probability < 0.40) {
-        return "stay";
-    }
-
     return bestPred.className;
 }
 
@@ -152,6 +147,7 @@ function resolveRound() {
     let isPlayerChanging = (pAction === "change");
     let isAiChanging = (aAction === "change");
 
+    // 交換規則：只有在「一人 charge、一人 change」時才會成立
     if (isPlayerChanging && isAiCharging) {
         let temp = playerBullets;
         playerBullets = aiBullets;
@@ -218,3 +214,108 @@ function resolveRound() {
 
     playerLastAction = pAction;
     aiLastAction = aAction;
+
+    document.getElementById("player-bullets").innerText = playerBullets;
+    document.getElementById("ai-bullets").innerText = aiBullets;
+
+    appendLog(roundResultMsg);
+
+    if (gameOver) {
+        document.getElementById("countdown-btn").disabled = true;
+        document.getElementById("player-action-text").innerText = winnerText;
+        document.getElementById("ai-action-text").innerText = winnerText;
+        
+        setTimeout(() => {
+            alert(winnerText + "\n\n點擊確定重新開始一局！");
+            resetGame();
+        }, 1000);
+    }
+}
+
+// 將辨識結果精準對應到你的英文標籤（避免 discharge 被 charge 誤判）
+function normalizeActionName(name) {
+    let lower = name.toLowerCase().trim();
+
+    if (lower.includes("discharge") || lower.includes("shoot")) {
+        return "discharge";
+    }
+    if (lower.includes("charge")) {
+        return "charge";
+    }
+    if (lower.includes("counter") || lower.includes("attack")) {
+        return "counterattack";
+    }
+    if (lower.includes("change") || lower.includes("swap")) {
+        return "change";
+    }
+    if (lower.includes("stay")) {
+        return "stay";
+    }
+
+    return "stay";
+}
+
+function resetGame() {
+    playerBullets = 0;
+    aiBullets = 0;
+    playerLastAction = "stay";
+    aiLastAction = "stay";
+    document.getElementById("player-bullets").innerText = 0;
+    document.getElementById("ai-bullets").innerText = 0;
+    document.getElementById("player-action-text").innerText = "等待出招...";
+    document.getElementById("ai-action-text").innerText = "敵方等待中...";
+    document.getElementById("countdown-btn").disabled = false;
+    appendLog("[系統] 遊戲已重置，新的一局開始！");
+}
+
+function appendLog(text) {
+    const log = document.getElementById("game-log");
+    log.innerHTML += text + "<br>";
+    log.scrollTop = log.scrollHeight;
+}
+
+function playSound(type) {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        let now = ctx.currentTime;
+        if (type === 'beep') {
+            osc.frequency.setValueAtTime(440, now);
+            gain.gain.setValueAtTime(0.1, now);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'shoot') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(80, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        } else if (type === 'reflect') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(900, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        } else if (type === 'win') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(523.25, now);
+            osc.frequency.setValueAtTime(659.25, now + 0.1);
+            osc.frequency.setValueAtTime(783.99, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'lose') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(80, now + 0.4);
+            gain.gain.setValueAtTime(0.2, now);
+            osc.start(now);
+            osc.stop(now + 0.4);
+        }
+    } catch (e) {
