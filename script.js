@@ -1,4 +1,4 @@
-const URL = "./my_model/";
+const URL = "./";
 
 let model, webcam, labelContainer, maxPredictions;
 let gameActive = false;
