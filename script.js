@@ -147,23 +147,17 @@ function resolveRound() {
     let playerEffectiveAction = pAction;
     let aiEffectiveAction = aAction;
 
-    // 檢查交換規則：只有在「一人 charge、一人 change」時才會成立
     let isPlayerCharging = (pAction === "charge");
     let isAiCharging = (aAction === "charge");
     let isPlayerChanging = (pAction === "change");
     let isAiChanging = (aAction === "change");
 
     if (isPlayerChanging && isAiCharging) {
-        // 玩家換子彈，AI 充能：AI 原本要 +1 變成沒加到，或雙方交換子彈狀態
-        // 經典規則：出 change 者奪取對方剛裝的一顆子彈 (或者雙方子彈數互換/轉移)
-        aiBullets; // AI 裝彈原本會 +1，這裡我們讓 AI 不加，或直接轉移
-        // 讓我們實作精準的子彈轉移：玩家拿走 AI 的 1 顆子彈 (或雙方互換)
         let temp = playerBullets;
         playerBullets = aiBullets;
         aiBullets = temp;
         roundResultMsg += "🔄 一方 charge、一方 change！成功觸發交換子彈！";
         playSound('swap');
-        // 標記已經處理完畢，避免後續重複加減子彈
         playerEffectiveAction = "handled_change";
         aiEffectiveAction = "handled_change";
     } else if (isAiChanging && isPlayerCharging) {
@@ -175,7 +169,6 @@ function resolveRound() {
         playerEffectiveAction = "handled_change";
         aiEffectiveAction = "handled_change";
     } else {
-        // 如果單獨出 change 但對方不是 charge，則 change 失效（無事發生）
         if (isPlayerChanging) {
             roundResultMsg += "⚠️ 你的 change 失敗（對方未使用 charge），浪費一回合！ ";
         }
@@ -184,7 +177,7 @@ function resolveRound() {
         }
     }
 
-    // 處理玩家動作（如果未在交換中被處理）
+    // 處理玩家動作
     if (playerEffectiveAction === "charge") {
         playerBullets++;
     } else if (playerEffectiveAction === "discharge") {
@@ -225,98 +218,3 @@ function resolveRound() {
 
     playerLastAction = pAction;
     aiLastAction = aAction;
-
-    document.getElementById("player-bullets").innerText = playerBullets;
-    document.getElementById("ai-bullets").innerText = aiBullets;
-
-    appendLog(roundResultMsg);
-
-    if (gameOver) {
-        document.getElementById("countdown-btn").disabled = true;
-        document.getElementById("player-action-text").innerText = winnerText;
-        document.getElementById("ai-action-text").innerText = winnerText;
-        
-        setTimeout(() => {
-            alert(winnerText + "\n\n點擊確定重新開始一局！");
-            resetGame();
-        }, 1000);
-    }
-}
-
-// 將辨識結果精準對應到你的英文標籤
-function normalizeActionName(name) {
-    let lower = name.toLowerCase();
-    if (lower.includes("charge")) return "charge";
-    if (lower.includes("discharge") || lower.includes("shoot")) return "discharge";
-    if (lower.includes("counter") || lower.includes("attack")) return "counterattack";
-    if (lower.includes("change") || lower.includes("swap")) return "change";
-    return "stay";
-}
-
-function resetGame() {
-    playerBullets = 0;
-    aiBullets = 0;
-    playerLastAction = "stay";
-    aiLastAction = "stay";
-    document.getElementById("player-bullets").innerText = 0;
-    document.getElementById("ai-bullets").innerText = 0;
-    document.getElementById("player-action-text").innerText = "等待出招...";
-    document.getElementById("ai-action-text").innerText = "敵方等待中...";
-    document.getElementById("countdown-btn").disabled = false;
-    appendLog("[系統] 遊戲已重置，新的一局開始！");
-}
-
-function appendLog(text) {
-    const log = document.getElementById("game-log");
-    log.innerHTML += text + "<br>";
-    log.scrollTop = log.scrollHeight;
-}
-
-function playSound(type) {
-    try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        let now = ctx.currentTime;
-        if (type === 'beep') {
-            osc.frequency.setValueAtTime(440, now);
-            gain.gain.setValueAtTime(0.1, now);
-            osc.start(now);
-            osc.stop(now + 0.1);
-        } else if (type === 'shoot') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(300, now);
-            osc.frequency.exponentialRampToValueAtTime(80, now + 0.2);
-            gain.gain.setValueAtTime(0.2, now);
-            osc.start(now);
-            osc.stop(now + 0.2);
-        } else if (type === 'reflect') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.exponentialRampToValueAtTime(900, now + 0.2);
-            gain.gain.setValueAtTime(0.2, now);
-            osc.start(now);
-            osc.stop(now + 0.2);
-        } else if (type === 'win') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(523.25, now);
-            osc.frequency.setValueAtTime(659.25, now + 0.1);
-            osc.frequency.setValueAtTime(783.99, now + 0.2);
-            gain.gain.setValueAtTime(0.2, now);
-            osc.start(now);
-            osc.stop(now + 0.3);
-        } else if (type === 'lose') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(200, now);
-            osc.frequency.exponentialRampToValueAtTime(80, now + 0.4);
-            gain.gain.setValueAtTime(0.2, now);
-            osc.start(now);
-            osc.stop(now + 0.4);
-        }
-    } catch (e) {
-        // Audio policy fallback
-    }
-}
