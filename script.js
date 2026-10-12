@@ -66,7 +66,6 @@ function getPlayerDetectedAction() {
             bestPred = currentPredictions[i];
         }
     }
-    
     return bestPred.className;
 }
 
@@ -232,27 +231,31 @@ function resolveRound() {
     }
 }
 
-// 絕對嚴格對應：先用正規表示式或精準比對，確保帶有 discharge 的絕不會被判成 charge
+// 嚴格而清楚的 if-else 判斷，絕對不會發生張冠李戴
 function normalizeActionName(name) {
-    let lower = name.toLowerCase().trim();
+    let action = name.trim().toLowerCase();
 
-    // 只要 raw name 裡面有 discharge 或 shoot，直接回傳 discharge
-    if (lower.indexOf("discharge") !== -1 || lower.indexOf("shoot") !== -1) {
+    // 1. 如果明確是 discharge 或 shoot
+    if (action === "discharge" || action.includes("discharge") || action.includes("shoot")) {
         return "discharge";
     }
-    if (lower.indexOf("counter") !== -1 || lower.indexOf("attack") !== -1) {
+    
+    // 2. 如果明確是 counterattack 或 attack
+    if (action === "counterattack" || action.includes("counter") || action.includes("attack")) {
         return "counterattack";
     }
-    if (lower.indexOf("change") !== -1 || lower.indexOf("swap") !== -1) {
+    
+    // 3. 如果明確是 change 或 swap
+    if (action === "change" || action.includes("change") || action.includes("swap")) {
         return "change";
     }
-    if (lower.indexOf("charge") !== -1) {
+    
+    // 4. 如果明確是 charge (但要排除上面已經被攔截的 discharge)
+    if (action === "charge" || action.includes("charge")) {
         return "charge";
     }
-    if (lower.indexOf("stay") !== -1) {
-        return "stay";
-    }
-
+    
+    // 5. 預設回傳 stay
     return "stay";
 }
 
