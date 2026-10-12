@@ -57,7 +57,6 @@ async function predict() {
     }
 }
 
-// 直接抓取當前最高機率的動作（不擅自強制轉為 stay）
 function getPlayerDetectedAction() {
     if (!currentPredictions || currentPredictions.length === 0) return "stay";
     
@@ -71,7 +70,6 @@ function getPlayerDetectedAction() {
     return bestPred.className;
 }
 
-// AI 智慧出招邏輯
 function getAIAction() {
     let validActions = ["charge", "stay"];
     
@@ -136,9 +134,6 @@ function resolveRound() {
     let gameOver = false;
     let winnerText = "";
 
-    // -----------------------------------------------------------------
-    // 規則判定核心
-    // -----------------------------------------------------------------
     let playerEffectiveAction = pAction;
     let aiEffectiveAction = aAction;
 
@@ -147,7 +142,7 @@ function resolveRound() {
     let isPlayerChanging = (pAction === "change");
     let isAiChanging = (aAction === "change");
 
-    // 交換規則：只有在「一人 charge、一人 change」時才會成立
+    // 交換規則
     if (isPlayerChanging && isAiCharging) {
         let temp = playerBullets;
         playerBullets = aiBullets;
@@ -173,41 +168,46 @@ function resolveRound() {
         }
     }
 
-    // 處理玩家動作
-    if (playerEffectiveAction === "charge") {
-        playerBullets++;
-    } else if (playerEffectiveAction === "discharge") {
+    // ⭐ 雙方同時 discharge 判定為平手無事發生
+    if (playerEffectiveAction === "discharge" && aiEffectiveAction === "discharge") {
         playerBullets--;
-        if (aiEffectiveAction === "counterattack") {
-            roundResultMsg += "🛡️ AI 成功 counterattack 了你的子彈！";
-            playSound('reflect');
-        } else if (aiEffectiveAction === "discharge") {
-            roundResultMsg += "💥 雙方同時 discharge！平手無事發生。";
-            playSound('shoot');
-        } else {
-            roundResultMsg += "🎉 命中目標！你把 AI 擊斃了！";
-            playSound('win');
-            gameOver = true;
-            winnerText = "🎉 遊戲結束！你獲得勝利 (WIN)！";
-        }
-    }
-
-    // 若尚未分出勝負，處理 AI 動作
-    if (!gameOver) {
-        if (aiEffectiveAction === "charge") {
-            aiBullets++;
-        } else if (aiEffectiveAction === "discharge") {
-            aiBullets--;
-            if (playerEffectiveAction === "counterattack") {
-                roundResultMsg += " | 🛡️ 你成功 counterattack 了 AI 的子彈！";
+        aiBullets--;
+        roundResultMsg += "💥 雙方同時 discharge！子彈互相抵銷，平手無事發生！";
+        playSound('shoot');
+    } else {
+        // 處理玩家動作
+        if (playerEffectiveAction === "charge") {
+            playerBullets++;
+        } else if (playerEffectiveAction === "discharge") {
+            playerBullets--;
+            if (aiEffectiveAction === "counterattack") {
+                roundResultMsg += "🛡️ AI 成功 counterattack 了你的子彈！";
                 playSound('reflect');
-            } else if (aiEffectiveAction === "discharge") {
-                // 平手已處理
             } else {
-                roundResultMsg += " | 💀 你被 AI 射死了！";
-                playSound('lose');
+                roundResultMsg += "🎉 命中目標！你把 AI 擊斃了！";
+                playSound('win');
                 gameOver = true;
-                winnerText = "💀 遊戲結束！AI 獲勝 (YOU LOSE)！";
+                winnerText = "🎉 遊戲結束！你獲得勝利 (WIN)！";
+            }
+        }
+
+        // 若尚未分出勝負，處理 AI 動作
+        if (!gameOver) {
+            if (aiEffectiveAction === "charge") {
+                aiBullets++;
+            } else if (aiEffectiveAction === "discharge") {
+                aiBullets--;
+                if (playerEffectiveAction === "counterattack") {
+                    roundResultMsg += " | 🛡️✨ 你成功 counterattack 反彈了 AI 的子彈，將 AI 擊斃！";
+                    playSound('win');
+                    gameOver = true;
+                    winnerText = "🎉 遊戲結束！你反彈成功獲得勝利 (WIN)！";
+                } else {
+                    roundResultMsg += " | 💀 你被 AI 射死了！";
+                    playSound('lose');
+                    gameOver = true;
+                    winnerText = "💀 遊戲結束！AI 獲勝 (YOU LOSE)！";
+                }
             }
         }
     }
@@ -232,21 +232,21 @@ function resolveRound() {
     }
 }
 
-// 將辨識結果精準對應到你的英文標籤（避免 discharge 被 charge 誤判）
+// 嚴格對應：必須先檢查 discharge，再檢查 charge，避免被字串包含誤判
 function normalizeActionName(name) {
     let lower = name.toLowerCase().trim();
 
     if (lower.includes("discharge") || lower.includes("shoot")) {
         return "discharge";
     }
-    if (lower.includes("charge")) {
-        return "charge";
-    }
     if (lower.includes("counter") || lower.includes("attack")) {
         return "counterattack";
     }
     if (lower.includes("change") || lower.includes("swap")) {
         return "change";
+    }
+    if (lower.includes("charge")) {
+        return "charge";
     }
     if (lower.includes("stay")) {
         return "stay";
@@ -319,3 +319,6 @@ function playSound(type) {
             osc.stop(now + 0.4);
         }
     } catch (e) {
+        // Audio policy fallback
+    }
+}
