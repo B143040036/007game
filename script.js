@@ -168,7 +168,7 @@ function resolveRound() {
         }
     }
 
-    // ⭐ 雙方同時 discharge 判定為平手無事發生
+    // 雙方同時 discharge 判定為平手無事發生
     if (playerEffectiveAction === "discharge" && aiEffectiveAction === "discharge") {
         playerBullets--;
         aiBullets--;
@@ -232,23 +232,24 @@ function resolveRound() {
     }
 }
 
-// 嚴格對應：必須先檢查 discharge，再檢查 charge，避免被字串包含誤判
+// 絕對嚴格對應：先用正規表示式或精準比對，確保帶有 discharge 的絕不會被判成 charge
 function normalizeActionName(name) {
     let lower = name.toLowerCase().trim();
 
-    if (lower.includes("discharge") || lower.includes("shoot")) {
+    // 只要 raw name 裡面有 discharge 或 shoot，直接回傳 discharge
+    if (lower.indexOf("discharge") !== -1 || lower.indexOf("shoot") !== -1) {
         return "discharge";
     }
-    if (lower.includes("counter") || lower.includes("attack")) {
+    if (lower.indexOf("counter") !== -1 || lower.indexOf("attack") !== -1) {
         return "counterattack";
     }
-    if (lower.includes("change") || lower.includes("swap")) {
+    if (lower.indexOf("change") !== -1 || lower.indexOf("swap") !== -1) {
         return "change";
     }
-    if (lower.includes("charge")) {
+    if (lower.indexOf("charge") !== -1) {
         return "charge";
     }
-    if (lower.includes("stay")) {
+    if (lower.indexOf("stay") !== -1) {
         return "stay";
     }
 
