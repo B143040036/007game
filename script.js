@@ -5,8 +5,8 @@ let gameActive = false;
 
 let playerBullets = 0;
 let aiBullets = 0;
-let playerLastAction = "";
-let aiLastAction = "";
+let playerLastAction = "stay";
+let aiLastAction = "stay";
 let currentPredictions = [];
 
 async function initGame() {
@@ -34,7 +34,7 @@ async function initGame() {
         document.getElementById("game-main").style.display = "grid";
         document.getElementById("control-panel").style.display = "block";
         gameActive = true;
-        appendLog("攝影機啟動成功！模型載入完成。");
+        appendLog("攝影機啟動成功！特務系統就緒。");
     } catch (e) {
         alert("模型載入失敗！請確認 ./my_model/ 資料夾內是否有 model.json、metadata.json 與 weights.bin。錯誤：" + e);
     }
@@ -57,8 +57,9 @@ async function predict() {
     }
 }
 
+// 取得當前鏡頭前信心分數最高的動作
 function getPlayerDetectedAction() {
-    if (currentPredictions.length === 0) return "存子彈";
+    if (currentPredictions.length === 0) return "stay";
     let best = currentPredictions[0];
     for (let i = 1; i < currentPredictions.length; i++) {
         if (currentPredictions[i].probability > best.probability) {
@@ -68,12 +69,13 @@ function getPlayerDetectedAction() {
     return best.className;
 }
 
+// AI 智慧出招邏輯（遵守不連續 counterattack、不連續 change、子彈不足不 discharge）
 function getAIAction() {
-    let validActions = ["存子彈"];
+    let validActions = ["charge", "stay"];
     
-    if (aiBullets > 0) validActions.push("發射");
-    if (aiLastAction !== "反彈") validActions.push("反彈");
-    if (aiLastAction !== "交換") validActions.push("交換");
+    if (aiBullets > 0) validActions.push("discharge");
+    if (aiLastAction !== "counterattack") validActions.push("counterattack");
+    if (aiLastAction !== "change") validActions.push("change");
 
     const chosen = validActions[Math.floor(Math.random() * validActions.length)];
     return chosen;
@@ -106,17 +108,18 @@ function resolveRound() {
     let rawAction = getPlayerDetectedAction();
     let pAction = normalizeActionName(rawAction);
 
-    if (pAction === "反彈" && playerLastAction === "反彈") {
-        appendLog("⚠️ 【違規】你連續兩次使用「反彈」，判定為失誤！自動改為「存子彈」。");
-        pAction = "存子彈";
+    // 違規檢查與修正
+    if (pAction === "counterattack" && playerLastAction === "counterattack") {
+        appendLog("⚠️ 【違規】你連續兩次使用 counterattack，判定為失誤！自動改為 stay。");
+        pAction = "stay";
     }
-    if (pAction === "交換" && playerLastAction === "交換") {
-        appendLog("⚠️ 【違規】你連續兩次使用「交換」，判定為失誤！自動改為「存子彈」。");
-        pAction = "存子彈";
+    if (pAction === "change" && playerLastAction === "change") {
+        appendLog("⚠️ 【違規】你連續兩次使用 change，判定為失誤！自動改為 stay。");
+        pAction = "stay";
     }
-    if (pAction === "發射" && playerBullets <= 0) {
-        appendLog("⚠️ 【違規】你沒有子彈可以「發射」，判定為失誤！自動改為「存子彈」。");
-        pAction = "存子彈";
+    if (pAction === "discharge" && playerBullets <= 0) {
+        appendLog("⚠️ 【違規】你沒有子彈可以 discharge，判定為失誤！自動改為 stay。");
+        pAction = "stay";
     }
 
     let aAction = getAIAction();
@@ -129,25 +132,26 @@ function resolveRound() {
 
     let roundResultMsg = "";
     let gameOver = false;
+    let winnerText = "";
 
-    if (pAction === "存子彈") {
+    // 處理玩家動作
+    if (pAction === "charge") {
         playerBullets++;
-    } else if (pAction === "發射") {
+    } else if (pAction === "discharge") {
         playerBullets--;
-        if (aAction === "反彈") {
-            roundResultMsg += "🛡️ AI 成功反彈了你的子彈！";
+        if (aAction === "counterattack") {
+            roundResultMsg += "🛡️ AI 成功 counterattack 了你的子彈！";
             playSound('reflect');
-        } else if (aAction === "發射") {
-            roundResultMsg += "💥 雙方同時發射！平手或無事發生。";
+        } else if (aAction === "discharge") {
+            roundResultMsg += "💥 雙方同時 discharge！平手無事發生。";
             playSound('shoot');
         } else {
-            roundResultMsg += "🎉 命中目標！你擊敗了敵方特務！";
+            roundResultMsg += "🎉 命中目標！你把 AI 擊斃了！";
             playSound('win');
             gameOver = true;
+            winnerText = "🎉 遊戲結束！你獲得勝利 (WIN)！";
         }
-    } else if (pAction === "反彈") {
-        // 防禦
-    } else if (pAction === "交換") {
+    } else if (pAction === "change") {
         let temp = playerBullets;
         playerBullets = aiBullets;
         aiBullets = temp;
@@ -155,20 +159,22 @@ function resolveRound() {
         playSound('swap');
     }
 
+    // 若尚未分出勝負，處理 AI 動作
     if (!gameOver) {
-        if (aAction === "存子彈") {
+        if (aAction === "charge") {
             aiBullets++;
-        } else if (aAction === "發射") {
+        } else if (aAction === "discharge") {
             aiBullets--;
-            if (pAction === "反彈") {
-                roundResultMsg += " | 🛡️ 你成功反彈了 AI 的子彈！";
+            if (pAction === "counterattack") {
+                roundResultMsg += " | 🛡️ 你成功 counterattack 了 AI 的子彈！";
                 playSound('reflect');
-            } else if (aAction === "發射") {
-                // 已在上一個條件處理
+            } else if (pAction === "discharge") {
+                // 剛剛雙方同時開槍已處理
             } else {
-                roundResultMsg += " | 💀 被擊中了！AI 贏了遊戲！";
+                roundResultMsg += " | 💀 你被 AI 射死了！";
                 playSound('lose');
                 gameOver = true;
+                winnerText = "💀 遊戲結束！AI 獲勝 (YOU LOSE)！";
             }
         }
     }
@@ -182,30 +188,37 @@ function resolveRound() {
     appendLog(roundResultMsg);
 
     if (gameOver) {
+        document.getElementById("countdown-btn").disabled = true;
+        document.getElementById("player-action-text").innerText = winnerText;
+        document.getElementById("ai-action-text").innerText = winnerText;
+        
         setTimeout(() => {
-            alert(roundResultMsg + "\n\n遊戲重新開始！");
+            alert(winnerText + "\n\n點擊確定重新開始一局！");
             resetGame();
-        }, 500);
+        }, 1000);
     }
 }
 
+// 將辨識結果精準對應到你的英文標籤
 function normalizeActionName(name) {
-    if (name.includes("存") || name.includes("charge") || name.includes("集")) return "存子彈";
-    if (name.includes("射") || name.includes("shoot") || name.includes("開槍") || name.includes("砰")) return "發射";
-    if (name.includes("反") || name.includes("reflect") || name.includes("防") || name.includes("擋")) return "反彈";
-    if (name.includes("交") || name.includes("swap") || name.includes("換")) return "交換";
-    return "存子彈";
+    let lower = name.toLowerCase();
+    if (lower.includes("charge")) return "charge";
+    if (lower.includes("discharge") || lower.includes("shoot")) return "discharge";
+    if (lower.includes("counter") || lower.includes("attack")) return "counterattack";
+    if (lower.includes("change") || lower.includes("swap")) return "change";
+    return "stay"; // 預設或無法辨別
 }
 
 function resetGame() {
     playerBullets = 0;
     aiBullets = 0;
-    playerLastAction = "";
-    aiLastAction = "";
+    playerLastAction = "stay";
+    aiLastAction = "stay";
     document.getElementById("player-bullets").innerText = 0;
     document.getElementById("ai-bullets").innerText = 0;
     document.getElementById("player-action-text").innerText = "等待出招...";
     document.getElementById("ai-action-text").innerText = "敵方等待中...";
+    document.getElementById("countdown-btn").disabled = false;
     appendLog("[系統] 遊戲已重置，新的一局開始！");
 }
 
