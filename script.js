@@ -141,15 +141,58 @@ function resolveRound() {
     let gameOver = false;
     let winnerText = "";
 
-    // 處理玩家動作
-    if (pAction === "charge") {
+    // -----------------------------------------------------------------
+    // 規則判定核心
+    // -----------------------------------------------------------------
+    let playerEffectiveAction = pAction;
+    let aiEffectiveAction = aAction;
+
+    // 檢查交換規則：只有在「一人 charge、一人 change」時才會成立
+    let isPlayerCharging = (pAction === "charge");
+    let isAiCharging = (aAction === "charge");
+    let isPlayerChanging = (pAction === "change");
+    let isAiChanging = (aAction === "change");
+
+    if (isPlayerChanging && isAiCharging) {
+        // 玩家換子彈，AI 充能：AI 原本要 +1 變成沒加到，或雙方交換子彈狀態
+        // 經典規則：出 change 者奪取對方剛裝的一顆子彈 (或者雙方子彈數互換/轉移)
+        aiBullets; // AI 裝彈原本會 +1，這裡我們讓 AI 不加，或直接轉移
+        // 讓我們實作精準的子彈轉移：玩家拿走 AI 的 1 顆子彈 (或雙方互換)
+        let temp = playerBullets;
+        playerBullets = aiBullets;
+        aiBullets = temp;
+        roundResultMsg += "🔄 一方 charge、一方 change！成功觸發交換子彈！";
+        playSound('swap');
+        // 標記已經處理完畢，避免後續重複加減子彈
+        playerEffectiveAction = "handled_change";
+        aiEffectiveAction = "handled_change";
+    } else if (isAiChanging && isPlayerCharging) {
+        let temp = playerBullets;
+        playerBullets = aiBullets;
+        aiBullets = temp;
+        roundResultMsg += "🔄 一方 charge、一方 change！成功觸發交換子彈！";
+        playSound('swap');
+        playerEffectiveAction = "handled_change";
+        aiEffectiveAction = "handled_change";
+    } else {
+        // 如果單獨出 change 但對方不是 charge，則 change 失效（無事發生）
+        if (isPlayerChanging) {
+            roundResultMsg += "⚠️ 你的 change 失敗（對方未使用 charge），浪費一回合！ ";
+        }
+        if (isAiChanging) {
+            roundResultMsg += "⚠️ AI 的 change 失敗（你未使用 charge），浪費一回合！ ";
+        }
+    }
+
+    // 處理玩家動作（如果未在交換中被處理）
+    if (playerEffectiveAction === "charge") {
         playerBullets++;
-    } else if (pAction === "discharge") {
+    } else if (playerEffectiveAction === "discharge") {
         playerBullets--;
-        if (aAction === "counterattack") {
+        if (aiEffectiveAction === "counterattack") {
             roundResultMsg += "🛡️ AI 成功 counterattack 了你的子彈！";
             playSound('reflect');
-        } else if (aAction === "discharge") {
+        } else if (aiEffectiveAction === "discharge") {
             roundResultMsg += "💥 雙方同時 discharge！平手無事發生。";
             playSound('shoot');
         } else {
@@ -158,26 +201,18 @@ function resolveRound() {
             gameOver = true;
             winnerText = "🎉 遊戲結束！你獲得勝利 (WIN)！";
         }
-    } else if (pAction === "change") {
-        let temp = playerBullets;
-        playerBullets = aiBullets;
-        aiBullets = temp;
-        roundResultMsg += "🔄 雙方子彈互換！";
-        playSound('swap');
-    } else {
-        roundResultMsg += "⏳ 處於 stay 狀態，未執行動作。";
     }
 
     // 若尚未分出勝負，處理 AI 動作
     if (!gameOver) {
-        if (aAction === "charge") {
+        if (aiEffectiveAction === "charge") {
             aiBullets++;
-        } else if (aAction === "discharge") {
+        } else if (aiEffectiveAction === "discharge") {
             aiBullets--;
-            if (pAction === "counterattack") {
+            if (playerEffectiveAction === "counterattack") {
                 roundResultMsg += " | 🛡️ 你成功 counterattack 了 AI 的子彈！";
                 playSound('reflect');
-            } else if (aAction === "discharge") {
+            } else if (aiEffectiveAction === "discharge") {
                 // 平手已處理
             } else {
                 roundResultMsg += " | 💀 你被 AI 射死了！";
