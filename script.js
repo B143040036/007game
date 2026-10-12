@@ -57,19 +57,26 @@ async function predict() {
     }
 }
 
-// 取得當前鏡頭前信心分數最高的動作
+// 嚴格比對機率，找出當前真正最高的動作
 function getPlayerDetectedAction() {
-    if (currentPredictions.length === 0) return "stay";
-    let best = currentPredictions[0];
+    if (!currentPredictions || currentPredictions.length === 0) return "stay";
+    
+    let bestPred = currentPredictions[0];
     for (let i = 1; i < currentPredictions.length; i++) {
-        if (currentPredictions[i].probability > best.probability) {
-            best = currentPredictions[i];
+        if (currentPredictions[i].probability > bestPred.probability) {
+            bestPred = currentPredictions[i];
         }
     }
-    return best.className;
+    
+    // 如果最高機率小於 40%，保險起見當作 stay 避免誤判
+    if (bestPred.probability < 0.40) {
+        return "stay";
+    }
+
+    return bestPred.className;
 }
 
-// AI 智慧出招邏輯（遵守不連續 counterattack、不連續 change、子彈不足不 discharge）
+// AI 智慧出招邏輯
 function getAIAction() {
     let validActions = ["charge", "stay"];
     
@@ -124,7 +131,7 @@ function resolveRound() {
 
     let aAction = getAIAction();
 
-    document.getElementById("player-action-text").innerText = `你出招：${pAction}`;
+    document.getElementById("player-action-text").innerText = `你出招：${pAction} (辨識為: ${rawAction})`;
     document.getElementById("ai-action-text").innerText = `敵方出招：${aAction}`;
     document.getElementById("ai-last-action").innerText = aAction;
 
@@ -157,6 +164,8 @@ function resolveRound() {
         aiBullets = temp;
         roundResultMsg += "🔄 雙方子彈互換！";
         playSound('swap');
+    } else {
+        roundResultMsg += "⏳ 處於 stay 狀態，未執行動作。";
     }
 
     // 若尚未分出勝負，處理 AI 動作
@@ -168,8 +177,8 @@ function resolveRound() {
             if (pAction === "counterattack") {
                 roundResultMsg += " | 🛡️ 你成功 counterattack 了 AI 的子彈！";
                 playSound('reflect');
-            } else if (pAction === "discharge") {
-                // 剛剛雙方同時開槍已處理
+            } else if (aAction === "discharge") {
+                // 平手已處理
             } else {
                 roundResultMsg += " | 💀 你被 AI 射死了！";
                 playSound('lose');
@@ -206,7 +215,7 @@ function normalizeActionName(name) {
     if (lower.includes("discharge") || lower.includes("shoot")) return "discharge";
     if (lower.includes("counter") || lower.includes("attack")) return "counterattack";
     if (lower.includes("change") || lower.includes("swap")) return "change";
-    return "stay"; // 預設或無法辨別
+    return "stay";
 }
 
 function resetGame() {
