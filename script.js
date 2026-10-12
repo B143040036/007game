@@ -141,7 +141,7 @@ function resolveRound() {
     let isPlayerChanging = (pAction === "change");
     let isAiChanging = (aAction === "change");
 
-    // 交換規則
+    // 交換規則 (一人 charge、一人 change)
     if (isPlayerChanging && isAiCharging) {
         let temp = playerBullets;
         playerBullets = aiBullets;
@@ -167,48 +167,52 @@ function resolveRound() {
         }
     }
 
-    // 雙方同時 discharge 判定為平手無事發生
+    // 處理子彈消耗與勝負判定
+    if (playerEffectiveAction === "charge") {
+        playerBullets++;
+    }
+    if (aiEffectiveAction === "charge") {
+        aiBullets++;
+    }
+
+    // 衝突判定：雙方同時 discharge
     if (playerEffectiveAction === "discharge" && aiEffectiveAction === "discharge") {
         playerBullets--;
         aiBullets--;
         roundResultMsg += "💥 雙方同時 discharge！子彈互相抵銷，平手無事發生！";
         playSound('shoot');
-    } else {
-        // 處理玩家動作
-        if (playerEffectiveAction === "charge") {
-            playerBullets++;
-        } else if (playerEffectiveAction === "discharge") {
-            playerBullets--;
-            if (aiEffectiveAction === "counterattack") {
-                roundResultMsg += "🛡️ AI 成功 counterattack 了你的子彈！";
-                playSound('reflect');
-            } else {
-                roundResultMsg += "🎉 命中目標！你把 AI 擊斃了！";
-                playSound('win');
-                gameOver = true;
-                winnerText = "🎉 遊戲結束！你獲得勝利 (WIN)！";
-            }
-        }
-
-        // 若尚未分出勝負，處理 AI 動作
-        if (!gameOver) {
-            if (aiEffectiveAction === "charge") {
-                aiBullets++;
-            } else if (aiEffectiveAction === "discharge") {
-                aiBullets--;
-                if (playerEffectiveAction === "counterattack") {
-                    roundResultMsg += " | 🛡️✨ 你成功 counterattack 反彈了 AI 的子彈，將 AI 擊斃！";
-                    playSound('win');
-                    gameOver = true;
-                    winnerText = "🎉 遊戲結束！你反彈成功獲得勝利 (WIN)！";
-                } else {
-                    roundResultMsg += " | 💀 你被 AI 射死了！";
-                    playSound('lose');
-                    gameOver = true;
-                    winnerText = "💀 遊戲結束！AI 獲勝 (YOU LOSE)！";
-                }
-            }
-        }
+    } 
+    // 玩家 discharge，AI 不是 counterattack -> 玩家勝利
+    else if (playerEffectiveAction === "discharge" && aiEffectiveAction !== "counterattack") {
+        playerBullets--;
+        roundResultMsg += "🎉 命中目標！你成功 discharge 擊斃了 AI！";
+        playSound('win');
+        gameOver = true;
+        winnerText = "🎉 遊戲結束！你獲得勝利 (WIN)！";
+    }
+    // 玩家 discharge，但被 AI counterattack -> 玩家失敗
+    else if (playerEffectiveAction === "discharge" && aiEffectiveAction === "counterattack") {
+        playerBullets--;
+        roundResultMsg += "🛡️ AI 成功 counterattack 擋下了你的攻擊！";
+        playSound('reflect');
+        gameOver = true;
+        winnerText = "💀 遊戲結束！你被對方 counterattack，AI 獲勝 (YOU LOSE)！";
+    }
+    // AI discharge，但被玩家 counterattack -> 玩家勝利（反彈成功）
+    else if (aiEffectiveAction === "discharge" && playerEffectiveAction === "counterattack") {
+        aiBullets--;
+        roundResultMsg += "🛡️✨ 你成功 counterattack 反彈了 AI 的子彈，將 AI 擊斃！";
+        playSound('win');
+        gameOver = true;
+        winnerText = "🎉 遊戲結束！你 counterattack 成功獲得勝利 (WIN)！";
+    }
+    // AI discharge，玩家沒有 counterattack -> 玩家失敗
+    else if (aiEffectiveAction === "discharge" && playerEffectiveAction !== "counterattack") {
+        aiBullets--;
+        roundResultMsg += "💀 你被 AI 的 discharge 擊中了！";
+        playSound('lose');
+        gameOver = true;
+        winnerText = "💀 遊戲結束！你被對方 discharge 擊殺，AI 獲勝 (YOU LOSE)！";
     }
 
     playerLastAction = pAction;
@@ -231,31 +235,21 @@ function resolveRound() {
     }
 }
 
-// 嚴格而清楚的 if-else 判斷，絕對不會發生張冠李戴
 function normalizeActionName(name) {
     let action = name.trim().toLowerCase();
 
-    // 1. 如果明確是 discharge 或 shoot
     if (action === "discharge" || action.includes("discharge") || action.includes("shoot")) {
         return "discharge";
     }
-    
-    // 2. 如果明確是 counterattack 或 attack
     if (action === "counterattack" || action.includes("counter") || action.includes("attack")) {
         return "counterattack";
     }
-    
-    // 3. 如果明確是 change 或 swap
     if (action === "change" || action.includes("change") || action.includes("swap")) {
         return "change";
     }
-    
-    // 4. 如果明確是 charge (但要排除上面已經被攔截的 discharge)
     if (action === "charge" || action.includes("charge")) {
         return "charge";
     }
-    
-    // 5. 預設回傳 stay
     return "stay";
 }
 
